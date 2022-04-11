@@ -17,19 +17,84 @@ from itertools import chain
 from tqdm import tqdm
 import sys
 from speclite import filters
+from scipy.interpolate import interp1d
 
-#%% Filter response curves
-#%% SED templates
-# fig, ax = plt.subplots(1,1)
+#%% Filter response curves + SED templates
+fig, ax = plt.subplots(1,1)
 
 with_atm = filters.load_filters('decamDR1-*')
-# speclite.filters.plot_filters(with_atm)
+filters.plot_filters(with_atm)
 
 R_i = with_atm[2].response
 lam_i = with_atm[2].wavelength
 
 # without_atm = speclite.filters.load_filters('decamDR1noatm-*')
 # speclite.filters.plot_filters(without_atm)
+
+z=5
+seddata = pd.read_csv('/Users/bflucero/Desktop/research/SED files/galsedaNGC4670.txt', delimiter = "\s+", comment = '#', usecols = [0,1], names=['Restframe Wavelength (Angstrom)', 'Flux per unit wavelength (ergs/s/cm^2/Angstrom)'])
+
+plt.plot(seddata['Restframe Wavelength (Angstrom)']*(1+z), seddata['Flux per unit wavelength (ergs/s/cm^2/Angstrom)']/seddata['Flux per unit wavelength (ergs/s/cm^2/Angstrom)'].max(), label = 'observed SED (z=5)', c = 'black', alpha = 0.8)
+plt.plot(seddata['Restframe Wavelength (Angstrom)'], seddata['Flux per unit wavelength (ergs/s/cm^2/Angstrom)']/seddata['Flux per unit wavelength (ergs/s/cm^2/Angstrom)'].max(), label = 'rest frame SED', c = 'grey', alpha = 0.5)
+plt.legend()
+
+#%%define k-correction
+
+SED_normf = seddata['Flux per unit wavelength (ergs/s/cm^2/Angstrom)']/seddata['Flux per unit wavelength (ergs/s/cm^2/Angstrom)'].max()
+SED_lam = seddata['Restframe Wavelength (Angstrom)']
+
+#color-correction term, i.e. m_UV - m_AB,i
+def color_corr(filter_response, Rlam_range, SEDflux, lam_obs, z):
+    
+    #filter response curve
+    R = np.array(filter_response)
+    filterlam = np.array(Rlam_range*u.Angstrom)
+    
+    #SED
+    flux = SEDflux.values*( (u.erg) / (u.s*(u.cm**2)*u.Angstrom) )
+    obslam = np.array(lam_obs*u.Angstrom)
+    emlam = obslam/(1+z)
+    
+    #create an array for the full wavelength range for response curve (add zeros to ends)
+    leftpad = ((np.arange(emlam.min(), (lam_i.min() - emlam.min()), 5)))
+    rightpad = ((np.arange(lam_i.max()+5, (obslam.max()), 5)))
+    rightpad = np.append(rightpad, obslam.max())
+    filterlam = np.concatenate((leftpad, filterlam, rightpad))
+    Rpad = np.pad(R, (len(leftpad), len(rightpad)))
+    
+    #create a function for transmission curve and SED
+    Rfunc = interp1d(filterlam, Rpad)
+    SEDfunc = interp1d(obslam, flux)
+    
+    def Rfluxlam_obsint(lam_obs):
+        return SEDfunc(lam_obs)*Rfunc(lam_obs)*lam_obs
+    
+    int_obs, intobserr = integrate.quad(Rfluxlam_obsint, obslam.min(), obslam.max(), points = [lam_i.min(), lam_i.max()])
+    
+    def Rfluxlam_emint(lam_em, *kwargs):
+        return SEDfunc(lam_em*(1+z))*Rfunc(lam_em)*lam_em
+    
+    int_em, intemerr = integrate.quad(Rfluxlam_emint, emlam.min(), emlam.max(), points = [lam_i.min(), lam_i.max()])
+    
+    #C correction term
+    C = 2.5*np.log10(int_obs/int_em)
+    
+    return(C, obslam, Rfluxlam_obsint(obslam), emlam, Rfluxlam_emint(emlam))
+
+C_corr,x,y,x2,y2 = (color_corr(R_i, lam_i, SED_normf, SED_lam, 5))
+
+plt.plot(x,y, label = 'RxSEDxlam at obslam')
+plt.plot(x2, y2, label = 'RxSEDxlam at emlam')
+# plt.plot(x, SED_normf, label = 'obs flux')
+# plt.plot(x2, SED_normf, label = 'em flux')
+plt.legend()
+
+    
+ #    # TODO: compare to Hoggs paper / Oke paper => is integrating over  f_lam_em w lambda_obs equivalent to int f_lam_obs w lambda_em
+ #        # NO -> why... and what is the correct way
+ #        # i think over lam obs is the correct way because we trying to analyze flux in a specific band not in the redshifted wavelength range
+ #    # TODO: i don't understand why for photometry flam(lamobs) does NOT equal flam(lamem*(1+z))
+
 #%% define main functions
 
 #convert abs AB mag to UV restframe
@@ -42,37 +107,6 @@ def obs_to_UV(m_ab, z):
 def ABmag_to_fnu(m_ab):
     fnu = np.power(10, -((m_ab + 48.6)/2.5))
     return(fnu*u.Jy) #Jy
-
-#k-correction term
-def k_corr(m_ab, response, wavelength_ang, z):
-    R = response
-    lam_obs = wavelength_ang*u.Angstrom
-    lam_em = lam_obs/(1+z)
-    nu_obs = (const.c/lam_obs).to(u.Hz)
-    nu_em = (1+z)*nu_obs
-    
-    #observed
-    nu_f_nu_obs = ABmag_to_fnu(m_ab)*nu_obs #spectral density per unit freq * freq
-    f_lam_obs = nu_f_nu_obs/lam_obs #spectral density per unit wavelength 
-
-    int_obs = integrate.simpson(R*lam_obs*f_lam_obs, lam_obs) #integral over observed wavelength
-    
-    #rest frame/emitted 
-    nu_f_nu_em = ABmag_to_fnu(m_ab)*nu_em #spectral density per unit freq * freq
-    f_lam_em = nu_f_nu_em/lam_em #spectral density per unit wavelength
-    
-    int_rf = integrate.simpson(R*lam_em*f_lam_em, lam_obs) #integral over rest frame wavelength
-    # int_rf_overem = integrate.simpson(R*lam_em*f_lam_obs, lam_em)
-    
-    # TODO: compare to Hoggs paper / Oke paper => is integrating over  f_lam_em w lambda_obs equivalent to int f_lam_obs w lambda_em
-        # NO -> why... and what is the correct way
-        # i think over lam obs is the correct way because we trying to analyze flux in a specific band not in the redshifted wavelength range
-    # TODO: i don't understand why for photometry flam(lamobs) does NOT equal flam(lamem*(1+z))
-    
-    #k-correction term
-    K = 2.5*np.log10(int_obs/int_rf)
-    
-    return(K)
 
 def UV_to_obs(M_uv, z):
     D_l = Planck18.luminosity_distance(z).to(u.pc)
