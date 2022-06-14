@@ -70,7 +70,7 @@ def UV_to_obs(M_uv, z):
     D_l = Planck18.luminosity_distance(z).to(u.pc)
     m_ab = M_uv + 5*np.log10(D_l/(10*u.pc)) - 2.5*np.log10(1+z)
 
-    print('to kcorrect: must SUBTRACT (muv - mi) term')
+    # print('to kcorrect: must SUBTRACT (muv - mi) term')
 
     return(m_ab)
 
@@ -92,7 +92,7 @@ def obs_to_UV(m_ab, z, *args):
     D_l = Planck18.luminosity_distance(z).to(u.pc)
     M_uv = m_ab + 2.5*np.log10(1+z) - 5*np.log10(D_l/(10*u.pc))
 
-    print('to kcorrect: must ADD (muv - mi) term')
+    # print('to kcorrect: must ADD (muv - mi) term')
 
     return(M_uv)
 
@@ -362,11 +362,17 @@ def k_corr(filter1, filter2, SEDdata, z):
 
     kcorr = []
 
-    for zval in z:
-        m1 = m_ab(R1, Rlam1, flux, lam, zval)
-        m2 = m_ab(R2, Rlam2, flux, lam, zval)
+    if np.asarray(z).size > 1:
+        for zval in z:
+            m1 = m_ab(R1, Rlam1, flux, lam, zval)
+            m2 = m_ab(R2, Rlam2, flux, lam, zval)
+            k = m2 - m1
+            kcorr.append(k)
+    else:
+        m1 = m_ab(R1, Rlam1, flux, lam, z)
+        m2 = m_ab(R2, Rlam2, flux, lam, z)
         k = m2 - m1
-        kcorr.append(k)
+        kcorr = k
 
     return(kcorr)
 
