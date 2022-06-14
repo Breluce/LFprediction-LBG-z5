@@ -54,7 +54,7 @@ def spDPL_SC(mags):
                                                           SCparams[galDPL_SC].alpha)
     return(sp)
 
-# %% Filter response curves + SED template
+# %% Filter response curves + SED
 
 
 '''read in SED file'''
