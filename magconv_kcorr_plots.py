@@ -46,26 +46,63 @@ LSST = filters.load_filters('lsst2016-*')
 
 # %% plot M_uv v m_i and kcorrection over z=0-5
 
-zgrid = np.linspace(0, 5, 50)
+zgrid = np.linspace(0, 6, 1000)
 
 k_UV_i = lf.k_corr(DECam[2], UV[0], SED, zgrid)
-Muv = np.linspace(-29, -18, 50)
-mi = lf.UV_to_obs(Muv, z=5)
 
 # %%
-fig, ax = plt.subplots(2, 1)
 
-ax[0].plot(Muv, mi, label='M_UV to m_AB')
-ax[0].plot(Muv, np.subtract(mi, k_UV_i), label='UV to m_AB \n w/ k-correction')
-ax[0].set_ylabel('$m_{i}$ (AB)')
-ax[0].set_xlabel('$M_{UV}$')
+# kcorrection values at z
+k_UV_i45 = lf.k_corr(DECam[2], UV[0], SED, 4.5)
+k_UV_i5 = lf.k_corr(DECam[2], UV[0], SED, 5)
+k_UV_i55 = lf.k_corr(DECam[2], UV[0], SED, 5.5)
 
-ax[1].plot(zgrid, k_UV_i)
-ax[1].set_xlabel('z')
-ax[1].set_ylabel('k-correction \n $M_{UV}$ to $m_{i}$')
+# define range of rest frame M_uv
+Muv = np.linspace(-29, -18, 50)
 
-ax[0].legend()
-ax[0].set_title('$M_{UV}$ vs $m_{i}$ (AB)')
-ax[1].set_title('k correction at 0<z<5')
-ax[0].set_box_aspect(1)
-ax[1].set_box_aspect(1)
+# corresponding values of m_i converted from M_uv
+mi45 = lf.UV_to_obs(Muv, z=4.5)
+mi5 = lf.UV_to_obs(Muv, z=5)
+mi55 = lf.UV_to_obs(Muv, z=5.5)
+# mi = lf.UV_to_obs(Muv, zgrid)
+
+# rest frame muv at z=5
+muv5 = lf.m_uv_kcorr(mi5, 5, k_UV_i5)
+
+# %% plot magnitude relations and k-correct
+fig, ax = plt.subplots(2, 2)
+
+ax[0][0].plot(Muv, mi5, label='M_UV to m_AB')
+plotz5 = ax[0][0].plot(Muv, np.subtract(mi5, k_UV_i5),
+                       label='UV to m_AB \n w/ k-correction at 4.5<z<5.0')
+ax[0][0].fill_between(Muv, np.subtract(mi45, k_UV_i45),
+                      np.subtract(mi5, k_UV_i5),
+                      alpha=0.3, color=plotz5[0].get_color())
+ax[0][0].fill_between(Muv, np.subtract(mi5, k_UV_i5),
+                      np.subtract(mi55, k_UV_i55),
+                      alpha=0.3, color=plotz5[0].get_color())
+ax[0][0].set_ylabel('$m_{i}$ (AB)')
+ax[0][0].set_xlabel('$M_{UV}$')
+ax[0][0].legend(fontsize='xx-small')
+ax[0][0].set_title('$M_{UV}$ vs $m_{i}$ (AB)')
+ax[0][0].set_box_aspect(1)
+
+ax[0][1].plot(zgrid, k_UV_i)
+ax[0][1].set_xlabel('z')
+ax[0][1].set_ylabel('k-correction \n $M_{UV}$ to $m_{i}$')
+ax[0][1].set_title('k correction at 0<z<6')
+ax[0][1].set_box_aspect(1)
+
+ax[1][0].plot(muv5, mi5)
+ax[1][0].set_ylabel('$m_{i}$ (AB)')
+ax[1][0].set_xlabel('$m_{UV}$')
+ax[1][0].set_title('$m_{UV}$ vs $m_{i}$ (AB)')
+ax[1][0].set_box_aspect(1)
+
+ax[1][1].plot(muv5, Muv)
+ax[1][1].set_ylabel('$M_{UV}$')
+ax[1][1].set_xlabel('$m_{UV}$')
+ax[1][1].set_title('$M_{UV}$ vs $m_{UV}$')
+ax[1][1].set_box_aspect(1)
+
+fig.tight_layout(pad=1.03)
