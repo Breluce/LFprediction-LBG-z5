@@ -376,6 +376,31 @@ def k_corr(filter1, filter2, SEDdata, z):
 
     return(kcorr)
 
+
+def m_uv_kcorr(m_ab, z, k_uv_ab):
+    """
+    Calculate observed via k-corrected rest frame M_UV.
+
+    Note: at z=0, m_ab is m_uv and k_uv_ab=0. i.e. m_uv = M_uv + 5log(D/10pc)
+    and M_uv = m_ab + 2.5log(1+z) - 5log(D/10pc) + (m_uv - m_ab). For a z=0
+    (m_ab = m_uv) case, m_uv = m_uv ✓
+
+    Parameters
+    ----------
+    m_ab : the observed photoband mag derived from M_UV and k-correction
+    z : redshift
+    k_uv_ab : k-correction between M_UV to m_ab filter
+
+    Returns
+    -------
+    m_uv_kcorr : observed m_uv
+
+    """
+    kcorr = np.add(np.asarray(2.5*np.log10(1+z)), np.asarray(k_uv_ab))
+    muv = np.add(np.asarray(m_ab), kcorr)
+
+    return muv
+
 # %% define integration functions
 
 
