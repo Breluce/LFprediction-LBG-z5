@@ -1,3 +1,5 @@
 # z5_LFintegration
 
-main functions located in LFint.py module
+- LFint.py module: contains models for 2 versions of the luminosity function (Schechter and Douple-Power Law). All functions for predicting the count of LBG's detectable given survey area, magnitude limit, and redshift integration limits. Additional functions for converting SED flux to apparent magnitudes and performing k-corrections.
+- LFparams.py module: script to produce pickle file for parameters of predicted luminosity functions as found in the literature.
+- LFplots.py module: script to read in luminosity function parameter predictions and produce a plot of all models 
